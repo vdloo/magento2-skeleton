@@ -108,6 +108,79 @@ atlassian*
 
 1. Add all files and commit the initial commit: `git add -A; git commit --verbose`
 
+## Initial Magento 2 deployment (installation)
+
+1. Create a releases directory somewhere (like `/data/web/releases`)
+
+1. Clone or copy your revision to the release dir under a certain revision number
+
+```
+mkdir -p /data/web/releases/1/
+cp -R ~/dev/magento2-skeleton /data/web/releases/1/
+```
+
+1. Create a 'current' symlink to the first revision. This will be updated later with new revisions.
+
+```
+cd /data/web/releases
+ln -s 1 current
+```
+
+1. Symlink the release dir to your webroot
+
+```
+ln -s /data/web/releases/current/magento2-skeleton/pub/ /data/web/public
+```
+
+1. Create a new database
+
+```
+mysql> create database magento2skeleton;
+Query OK, 1 row affected (0.02 sec)
+```
+
+1. Perform the initial installation
+
+```
+cd /data/web/releases/current/magento2-skeleton
+./bin/magento setup:install --db-host=mysqlmaster --db-name=magento2skeleton --db-user=app --db-password=<YOUR DB PWD, SEE /data/web/.my.cnf> --backend-frontname=admin --base-url=http://<YOURHYPERNODENAME>.hypernode.io --language=en_US --timezone=Europe/Amsterdam --currency=EUR --admin-lastname=Admin --admin-firstname=Admin --admin-email=admin@example.com --admin-user=admin --admin-password=<A GOOD PASSWORD> --cleanup-database --use-rewrites=1
+```
+
+1. Add the indexer cron
+
+```
+echo "* * * * * flock -n ~/.cron.lock php /data/web/releases/current/magento2-skeleton/bin/magento cron:run" | crontab -
+```
+
+## Deploying changes
+
+1. In your new release, make sure you have run `composer update` and commited the `composer.lock` file if it has changed.
+
+Composer update installs all latest available module versions. The `composer.lock` file has to be commited as part of your revision. This is because on staging / production you want to install exactly the same module versions every time for a revision.
+
+1. Clone or copy the new revision to `/data/releases/<NUMBER>/`
+
+1. Composer install to update to get the modules for this revision
+
+```
+cd /data/releases/<NUMBER>/magento2-skeleton
+composer install
+```
+
+1. Unlink the current symlink `unlink /data/releases/current`. Note that from this step on there will be downtime.
+
+1. Link the new checkout `ln -s /data/web/releases/2 /data/web/releases/current`
+
+1. Upgrade the installation
+
+```
+cd /data/web/releases/current/magento2-skeleton
+./bin/magento setup:upgrade
+./bin/magento setup:di:compile
+./bin/magento setup:static-content:deploy -f
+```
+
 Resources:
 https://firebearstudio.com/blog/magento-2-git-and-deployment.html
 http://devdocs.magento.com/guides/v2.0/install-gde/prereq/connect-auth.html
+
